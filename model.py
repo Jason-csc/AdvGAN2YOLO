@@ -31,7 +31,6 @@ class AdvModel:
         self._lamda  = lamda
         self._device = device
         self._lbl    = lbl
-        self._device = device
         
         self.generator = Generator(latent_dim=latent_dim, img_shape=img_shape).to(device)
         self.discriminator = Discriminator(latent_dim=latent_dim, img_shape=img_shape).to(device)
@@ -81,3 +80,5 @@ class AdvModel:
         d_loss : torch.Tensor = (real_loss + fake_loss) / 2
         d_loss.backward()
         self._optimizer_D.step()
+
+        return compound_loss.item(), d_loss.item()
