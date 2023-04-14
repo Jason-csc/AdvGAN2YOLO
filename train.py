@@ -6,7 +6,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 from model import AdvModel
-
+from resnet18 import Resnet18
 
 BATCH_SIZE = 128
 EPOCH = 60
@@ -18,7 +18,19 @@ if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
 
 
-mnist_dataset = torchvision.datasets.MNIST('./dataset', train=True, transform=transforms.ToTensor(), download=True)
+GRAYSCALE = True
+NUM_CLASSES = 10
+
+
+TARGET_MODEL_PATH = "./target_model/resnet18_minst_best.pth"
+print(f"Loadign target model from {TARGET_MODEL_PATH}")
+target_model =  Resnet18(NUM_CLASSES,GRAYSCALE)
+target_model.load_state_dict(torch.load(TARGET_MODEL_PATH))
+target_model.to(DEVICE)
+target_model.eval()
+
+
+mnist_dataset = torchvision.datasets.MNIST('./data', train=True, transform=transforms.ToTensor(), download=True)
 train_dataloader = DataLoader(mnist_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=1)
 
 
@@ -30,9 +42,9 @@ for epoch in range(EPOCH):
     batch_d_loss = 0
     for i, (imgs, _) in enumerate(train_dataloader):
         imgs = imgs.to(DEVICE)
-        compound_loss, d_loss = advmodel.train_step(imgs, target_model=)
+        compound_loss, d_loss = advmodel.train_step(imgs, target_model=target_model)
         batch_compound_loss += compound_loss
-        batch_d_loss += batch_d_loss
+        batch_d_loss += d_loss
     
     # print statistics
     print(f"Epoch {epoch}: \

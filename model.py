@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .gan import Discriminator, Generator
+from gan import Discriminator, Generator
 
 
 def weights_init(m):
@@ -50,8 +50,8 @@ class AdvModel:
 
         B,C,H,W = real_imgs.shape
         
-        valid = torch.Tensor(B, 1, device=self._device).fill_(1.0)
-        fake = torch.Tensor(B, 1, device=self._device).fill_(0.0)
+        valid = torch.Tensor(B, 1).fill_(1.0).to(self._device)
+        fake = torch.Tensor(B, 1).fill_(0.0).to(self._device)
         z = torch.normal(0.0, 1.0, size=[B, self._latent_dim], device=self._device)
         
         # generator
