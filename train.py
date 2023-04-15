@@ -68,5 +68,5 @@ for epoch in range(opt.n_epochs):
     
     # save model
     if epoch%20 == 0:
-        filename = MODEL_PATH  + f'advGenerator_epoch_{epoch}.pth'
+        filename = MODEL_PATH  + f'advGenerator_lbl={opt.lbl}_lam={opt.lamda}_lr={opt.lr}_bz={opt.batch_size}_epoch={epoch}.pth'
         torch.save(advmodel.generator.state_dict(), filename)
