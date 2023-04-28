@@ -61,7 +61,9 @@ class AdvGAN_Attack:
                 beta, 
                 gamma,
                 n_steps_D, 
-                n_steps_G
+                n_steps_G,
+                C,
+                is_relativistic=False
             ):
         self.device = device
         self.model = model
@@ -78,6 +80,10 @@ class AdvGAN_Attack:
 
         self.n_steps_D = n_steps_D
         self.n_steps_G = n_steps_G
+
+        self.is_relativistic = is_relativistic
+
+        self.c = C
 
         self.G = gan.Generator(n_channels, n_channels).to(device)
         self.D = gan.Discriminator(n_channels).to(device)
@@ -140,7 +146,9 @@ class AdvGAN_Attack:
             loss_hinge = torch.max(torch.zeros(1, device=self.device), perturbation_norm - self.c)
 
             # the Adv Loss part of L
-            logits_model = self.model(self.up_sample(adv_images))
+            logits_model = self.model(self.up_sample(adv_images.detach()))
+            ##TODO: add detach ??
+
             # batch_size, numOfAnchor, 4 + 1 + 80
             logits_model = logits_model[:, :, self.target_lbl + 5]
             loss_adv = F.logsigmoid(logits_model).mean(1).sum()
@@ -195,23 +203,34 @@ class AdvGAN_Attack:
             # save generator
             torch.save(self.G.state_dict(), '{}G_epoch_{}.pth'.format(models_path, str(epoch)))
 
-
         plt.figure()
         plt.plot(loss_D)
-        plt.savefig(losses_path + self.target + '/loss_D.png')
+        plt.savefig(losses_path + 'loss_D.png')
 
         plt.figure()
         plt.plot(loss_G)
-        plt.savefig(losses_path + self.target + '/loss_G.png')
+        plt.savefig(losses_path + 'loss_G.png')
 
         plt.figure()
         plt.plot(loss_adv)
-        plt.savefig(losses_path + self.target + '/loss_adv.png')
+        plt.savefig(losses_path + 'loss_adv.png')
 
         plt.figure()
         plt.plot(loss_G_gan)
-        plt.savefig(losses_path + self.target + '/loss_G_gan.png')
+        plt.savefig(losses_path + 'loss_G_gan.png')
 
         plt.figure()
         plt.plot(loss_hinge)
-        plt.savefig(losses_path + self.target + '/loss_hinge.png')
+        plt.savefig(losses_path + 'loss_hinge.png')
+
+
+    def evaluate(self, target_img):
+        #generate adv images and evaluate by target model
+        self.G.eval()
+        target_img = target_img.to(self.device)
+        with torch.no_grad():
+            perturbation = self.G(target_img)
+            adv_images = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound) + target_img
+            adv_images = torch.clamp(adv_images, 0, 1)
+        #TODO: evaluate
+        return adv_images[0].cpu()
