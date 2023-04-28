@@ -31,6 +31,8 @@ import torchvision
 
 import gan
 
+from SafeBench.safebench.agent.object_detection.utils.general import non_max_suppression
+
 models_path = './checkpoints/AdvGAN/'
 losses_path = './results/losses/'
 
@@ -52,7 +54,7 @@ class AdvGAN_Attack:
     def __init__(
                 self, 
                 device, 
-                model, 
+                target_model, 
                 n_channels,
                 target_lbl,
                 lr, 
@@ -66,7 +68,7 @@ class AdvGAN_Attack:
                 is_relativistic=False
             ):
         self.device = device
-        self.model = model
+        self.target_model = target_model
         
         self.target_lbl = target_lbl
 
@@ -146,7 +148,7 @@ class AdvGAN_Attack:
             loss_hinge = torch.max(torch.zeros(1, device=self.device), perturbation_norm - self.c)
 
             # the Adv Loss part of L
-            logits_model = self.model(self.up_sample(adv_images.detach()))
+            logits_model = self.target_model(self.up_sample(adv_images.detach()))
             ##TODO: add detach ??
 
             # batch_size, numOfAnchor, 4 + 1 + 80
@@ -224,7 +226,7 @@ class AdvGAN_Attack:
         plt.savefig(losses_path + 'loss_hinge.png')
 
 
-    def evaluate(self, target_img):
+    def evaluate(self, target_img, conf_thres=0.0, iou_thres=0.0):
         #generate adv images and evaluate by target model
         self.G.eval()
         target_img = target_img.to(self.device)
@@ -233,4 +235,7 @@ class AdvGAN_Attack:
             adv_images = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound) + target_img
             adv_images = torch.clamp(adv_images, 0, 1)
         #TODO: evaluate
-        return adv_images[0].cpu()
+        return {
+            "adv_image":adv_images, 
+            "evaluation": self.target_model.get_inference(self.up_sample(adv_images.detach()))
+        }

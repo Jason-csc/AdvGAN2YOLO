@@ -3,7 +3,6 @@ import torch
 
 from advGan import AdvGAN_Attack
 from SafeBench.safebench.agent.object_detection.yolov5 import YoloAgent
-from SafeBench.safebench.agent.object_detection.utils.general import non_max_suppression 
 
 DEVICE = 'cuda'
 EPOCH = 60
@@ -29,7 +28,7 @@ TARGET_MODEL.model.to(DEVICE)
 
 attacker = AdvGAN_Attack(
   device=DEVICE,
-  model=TARGET_MODEL.model,
+  target_model=TARGET_MODEL.model,
   n_channels=3,
   target_lbl=TARGET_LABEL,
   lr=LR,
@@ -42,12 +41,15 @@ attacker = AdvGAN_Attack(
   C=MAX_PERTURBATION_ALLOWED ##TODO: NOT SURE THE DIFFERENCE BETWEEN C AND L_INF_BOUND
 )
 
-
 attacker.train(TARGET_IMAGE, EPOCH)
 
 
 # get adversarial image
-adv_res = attacker.attack(TARGET_IMAGE)
+res = attacker.evaluate(TARGET_IMAGE)
+adv_res = res["adv_res"]
 adv_res = (adv_res.permute(1,2,0).numpy())*255.
 ## TODO: multiply 255 back ???
 cv2.imwrite("adv_stop_sign.jpg", adv_res)
+
+print("Evaluation Info:")
+print(res["evaluation"])
