@@ -68,7 +68,8 @@ class AdvGAN_Attack:
                 is_relativistic=False
             ):
         self.device = device
-        self.target_model = target_model
+        self.target_model_class = target_model
+        self.target_model = self.target_model_class.model
         
         self.target_lbl = target_lbl
 
@@ -148,12 +149,13 @@ class AdvGAN_Attack:
             loss_hinge = torch.max(torch.zeros(1, device=self.device), perturbation_norm - self.c)
 
             # the Adv Loss part of L
-            logits_model = self.target_model(self.up_sample(adv_images.detach()))
+            logits_model = self.target_model(self.up_sample(adv_images))
             ##TODO: add detach ??
 
             # batch_size, numOfAnchor, 4 + 1 + 80
             logits_model = logits_model[:, :, self.target_lbl + 5]
-            loss_adv = F.logsigmoid(logits_model).mean(1).sum()
+            loss_adv = torch.log(logits_model).mean(1).sum()
+
 
             # the GAN Loss part of L
             logits_real, pred_real = self.D(x)
@@ -237,5 +239,5 @@ class AdvGAN_Attack:
         #TODO: evaluate
         return {
             "adv_image":adv_images, 
-            "evaluation": self.target_model.get_inference(self.up_sample(adv_images.detach()))
+            "evaluation": self.target_model_class.get_inference(self.up_sample(adv_images.detach()),conf_thres,iou_thres)
         }

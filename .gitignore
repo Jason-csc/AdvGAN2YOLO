@@ -8,3 +8,5 @@ checkpoints/
 setup.py
 *.jpg
 *.pt
+*.log
+*.ipynb
