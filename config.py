@@ -19,7 +19,7 @@ MAX_LPNORM_PERTURBATION_ALLOWED = 0.1
 # MAX_PERTURBATION_ALLOWED = 0.05
 # MAX_LPNORM_PERTURBATION_ALLOWED = 15
 """untargeted attack"""
-# MAX_PERTURBATION_ALLOWED = 0.03
+# MAX_PERTURBATION_ALLOWED = 0.01
 # MAX_LPNORM_PERTURBATION_ALLOWED = 0.1
 
 
@@ -58,7 +58,7 @@ LABELS = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 
           'hair drier', 'toothbrush']
 
 
-ATTACK_MODE = -1
+ATTACK_MODE = -2
 """
 -1  : untargeted attack
 -2  : attack confidence score for object existence

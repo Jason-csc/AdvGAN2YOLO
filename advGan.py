@@ -249,7 +249,7 @@ class AdvGAN_Attack:
                         best_score = scores
                         best_image = res["adv_image"].detach().clone()
                 else: # targeted attack
-                    if labels[0] == LABELS[self.attack_mode] and 'stopsign' not in best_labels and norm < best_norm:
+                    if labels[0] == LABELS[self.attack_mode] and 'stopsign' not in labels and norm < best_norm:
                         best_norm = norm
                         best_labels = labels
                         best_epoch = epoch
