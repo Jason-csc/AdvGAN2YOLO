@@ -1,5 +1,5 @@
 # AdvGAN Attack to YOLO
-## Challenge - [SafeBench Perception Attack](https://safebench.github.io/)
+## Challenge - [SafeBench Perception Attack](https://safebench.readthedocs.io/en/latest/tracks.html#track-1-perception-attack)
 
 Our solution is to apply [AdvGAN](https://arxiv.org/abs/1801.02610) Model to generate adversarial examples of Stop Sign for Object Detection (YOLOv5) in three attack modes: 
 - Targeted
