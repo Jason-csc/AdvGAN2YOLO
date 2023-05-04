@@ -17,11 +17,11 @@
 # Modified from https://github.com/mathcbc/advGAN_pytorch/blob/master/advGAN.py
 
 import matplotlib
-
 matplotlib.use('Agg')
 
 import os
 
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -31,10 +31,8 @@ import torchvision
 
 import gan
 
-from SafeBench.safebench.agent.object_detection.utils.general import non_max_suppression
+from config import LABELS, LOSSES_PATH, MODELS_PATH
 
-models_path = './checkpoints/AdvGAN/'
-losses_path = './results/losses/'
 
 
 
@@ -56,7 +54,7 @@ class AdvGAN_Attack:
                 device, 
                 target_model, 
                 n_channels,
-                target_lbl,
+                target_img_lbl,
                 lr, 
                 l_inf_bound, 
                 alpha, 
@@ -65,13 +63,14 @@ class AdvGAN_Attack:
                 n_steps_D, 
                 n_steps_G,
                 C,
+                attack_mode,
                 is_relativistic=False
             ):
         self.device = device
         self.target_model_class = target_model
         self.target_model = self.target_model_class.model
         
-        self.target_lbl = target_lbl
+        self.target_img_lbl = target_img_lbl
 
         self.lr = lr
 
@@ -88,6 +87,8 @@ class AdvGAN_Attack:
 
         self.c = C
 
+        self.attack_mode = attack_mode
+
         self.G = gan.Generator(n_channels, n_channels).to(device)
         self.D = gan.Discriminator(n_channels).to(device)
 
@@ -101,19 +102,16 @@ class AdvGAN_Attack:
 
         self.up_sample = nn.Upsample(scale_factor=2)
 
-        if not os.path.exists(models_path):
-            os.makedirs(models_path)
-
-        if not os.path.exists('{}/'.format(losses_path)):
-            os.makedirs('{}/'.format(losses_path))
-
 
     def train_batch(self, x):
+        self.G.train()
+        self.D.train()
         # optimize D
         for i in range(self.n_steps_D):
             perturbation = self.G(x)
+            perturbation = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound)
 
-            adv_images = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound) + x
+            adv_images = perturbation + x
             adv_images = torch.clamp(adv_images, 0, 1)
 
             self.D.zero_grad()
@@ -150,12 +148,24 @@ class AdvGAN_Attack:
 
             # the Adv Loss part of L
             logits_model = self.target_model(self.up_sample(adv_images))
-            ##TODO: add detach ??
-
             # batch_size, numOfAnchor, 4 + 1 + 80
-            logits_model = logits_model[:, :, self.target_lbl + 5]
-            loss_adv = torch.log(logits_model).mean(1).sum()
-
+            if self.attack_mode == -2:
+                # attack for object existence
+                logits1 = logits_model[:, :, 4]
+                logits2 = logits_model[:, :, self.target_img_lbl + 5]
+                loss_adv = torch.log(logits1).max(1)[0].sum() + torch.log(logits2).max(1)[0].sum()
+            elif self.attack_mode == -1:
+                # untargeted attack
+                logits1 = logits_model[:, :, self.target_img_lbl + 5]
+                loss_adv = torch.log(logits1).max(1)[0].sum()
+                # loss_adv = torch.max(torch.zeros_like(loss_adv), loss_adv - math.log(0.5))
+            else:
+                # targeted attack with target label = attack_mode (0 - 79)
+                logits1 = logits_model[:, :, self.target_img_lbl + 5]
+                logits2 = logits_model[:, :, self.attack_mode + 5]
+                loss_adv = torch.log(logits1).max(1)[0].sum()
+                loss_adv = 1.25*torch.max(torch.zeros_like(loss_adv), loss_adv - math.log(0.5))
+                loss_adv -= torch.log(logits2).max(1)[0].sum()
 
             # the GAN Loss part of L
             logits_real, pred_real = self.D(x)
@@ -180,6 +190,12 @@ class AdvGAN_Attack:
 
     def train(self, target_img, epochs):
         loss_D, loss_G, loss_G_gan, loss_hinge, loss_adv = [], [], [], [], []
+        best_epoch = -1
+        best_norm = float('inf')
+        best_labels = []
+        best_image = None
+        best_obj_existence = float('inf')
+        best_score = None
         
         for epoch in range(1, epochs+1):
             loss_D_sum, loss_G_sum, loss_G_gan_sum, loss_hinge_sum, loss_adv_sum = 0, 0, 0, 0, 0
@@ -204,40 +220,84 @@ class AdvGAN_Attack:
             loss_G_gan.append(loss_G_gan_sum)
             loss_hinge.append(loss_hinge_sum)
 
-            # save generator
-            torch.save(self.G.state_dict(), '{}G_epoch_{}.pth'.format(models_path, str(epoch)))
+            """save generator"""
+            # torch.save(self.G.state_dict(), '{}G_epoch_{}.pth'.format(MODELS_PATH, str(epoch)))
 
-        plt.figure()
-        plt.plot(loss_D)
-        plt.savefig(losses_path + 'loss_D.png')
+            if epoch%2 == 0:
+                res = self.evaluate(target_img)
+                labels = res["evaluation"][1][0]['labels'][:5]
+                scores = res["evaluation"][1][0]['scores'][:5]
+                norm = res["perturbation_norm"].detach().clone()
+                obj_existence = res["evaluation"][0][:, :, 4].max(1)[0].item()
+                print("Check labels",labels)
+                print("Check scores",scores)
+                print("Check norm",norm)
+                print("Check obj_existence",obj_existence)
+                if self.attack_mode == -2: # attack for object existence
+                    if obj_existence <= 0.5 and norm < best_norm:
+                        best_norm = norm
+                        best_labels = labels
+                        best_epoch = epoch
+                        best_score = scores
+                        best_image = res["adv_image"].detach().clone()
+                        best_obj_existence = obj_existence
+                elif self.attack_mode == -1: # untargeted attack
+                    if labels[0] != 'stopsign' and norm < best_norm:
+                        best_norm = norm
+                        best_labels = labels
+                        best_epoch = epoch
+                        best_score = scores
+                        best_image = res["adv_image"].detach().clone()
+                else: # targeted attack
+                    if labels[0] == LABELS[self.attack_mode] and 'stopsign' not in best_labels and norm < best_norm:
+                        best_norm = norm
+                        best_labels = labels
+                        best_epoch = epoch
+                        best_score = scores
+                        best_image = res["adv_image"].detach().clone()
 
-        plt.figure()
-        plt.plot(loss_G)
-        plt.savefig(losses_path + 'loss_G.png')
+        """plot losses"""
+        # plt.figure()
+        # plt.plot(loss_D)
+        # plt.savefig(LOSSES_PATH + f'loss_D_{self.attack_mode}_{self.alpha}_{self.beta}_{self.gamma}.png')
 
-        plt.figure()
-        plt.plot(loss_adv)
-        plt.savefig(losses_path + 'loss_adv.png')
+        # plt.figure()
+        # plt.plot(loss_G)
+        # plt.savefig(LOSSES_PATH + f'loss_G_{self.attack_mode}_{self.alpha}_{self.beta}_{self.gamma}.png')
 
-        plt.figure()
-        plt.plot(loss_G_gan)
-        plt.savefig(losses_path + 'loss_G_gan.png')
+        # plt.figure()
+        # plt.plot(loss_adv)
+        # plt.savefig(LOSSES_PATH + f'loss_adv_{self.attack_mode}_{self.alpha}_{self.beta}_{self.gamma}.png')
 
-        plt.figure()
-        plt.plot(loss_hinge)
-        plt.savefig(losses_path + 'loss_hinge.png')
+        # plt.figure()
+        # plt.plot(loss_G_gan)
+        # plt.savefig(LOSSES_PATH + f'loss_G_gan_{self.attack_mode}_{self.alpha}_{self.beta}_{self.gamma}.png')
+
+        # plt.figure()
+        # plt.plot(loss_hinge)
+        # plt.savefig(LOSSES_PATH + f'loss_hinge_{self.attack_mode}_{self.alpha}_{self.beta}_{self.gamma}.png')
+
+        return best_norm, best_epoch, best_labels, best_image, best_score, best_obj_existence
 
 
-    def evaluate(self, target_img, conf_thres=0.0, iou_thres=0.0):
-        #generate adv images and evaluate by target model
+    def evaluate(self, target_img, conf_thres=0.0, iou_thres=0.0, max_det=50, preturb=True):
+        """generate adv images and evaluate by target model"""
         self.G.eval()
         target_img = target_img.to(self.device)
-        with torch.no_grad():
-            perturbation = self.G(target_img)
-            adv_images = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound) + target_img
-            adv_images = torch.clamp(adv_images, 0, 1)
-        #TODO: evaluate
-        return {
-            "adv_image":adv_images, 
-            "evaluation": self.target_model_class.get_inference(self.up_sample(adv_images.detach()),conf_thres,iou_thres)
-        }
+        if preturb:
+            with torch.no_grad():
+                perturbation = self.G(target_img).detach()
+                perturbation = torch.clamp(perturbation, -self.l_inf_bound, self.l_inf_bound)
+                adv_images = perturbation + target_img
+                adv_images = torch.clamp(adv_images, 0, 1)
+                return {
+                    "adv_image": adv_images, 
+                    "evaluation": self.target_model_class.get_inference(self.up_sample(adv_images.detach()),conf_thres,iou_thres, max_det),
+                    "perturbation_norm": torch.mean(torch.norm(perturbation.view(perturbation.shape[0], -1), 2, dim=1))
+                }
+        else:
+            adv_images = target_img
+            return {
+                "evaluation": self.target_model_class.get_inference(self.up_sample(adv_images.detach()),conf_thres,iou_thres, max_det)
+            }
+        
