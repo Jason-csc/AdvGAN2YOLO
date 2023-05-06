@@ -19,7 +19,7 @@ from config import EPOCH, LR_LIST, DEVICE, ALPHA_LIST, BETA_LIST, GAMMA_LIST, \
 
 
 TARGET_MODEL = YoloModel(config={'ego_action_dim': 2,
-                                 'model_path': "yolov5n6.pt", \
+                                 'model_path': "yolov5x6.pt", \
                                  #  'model_path': "SafeBench/safebench/agent/object_detection/yolov5n.pt", \
                                  'type': None, 'batch_size': 1}, logger=None)
 TARGET_MODEL.model.eval()
@@ -30,8 +30,8 @@ TARGET_MODEL.model.to(DEVICE)
 for i, (LR, ALPHA, BETA, GAMMA) in enumerate(product(LR_LIST, ALPHA_LIST, BETA_LIST, GAMMA_LIST)):
     print(f"LR {LR} ALPHA {ALPHA} BETA {BETA} GAMMA {GAMMA}")
     attacker = AdvGAN_Attack(
-        device=DEVICE,
         target_model=TARGET_MODEL,
+        device=DEVICE,
         n_channels=3,
         target_img_lbl=TARGET_IMAGE_LABEL,
         lr=LR,

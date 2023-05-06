@@ -3,21 +3,25 @@ import cv2
 import os
 
 DEVICE = 'cuda'
-EPOCH = 200
+EPOCH = 500
 LR_LIST = [5e-5]
 
 
+# ALPHA_LIST = [10,50,100]
+# BETA_LIST = [1,10,50,100]
+# GAMMA_LIST = [1000,2000]
+
 ALPHA_LIST = [10]
 BETA_LIST = [1]
-GAMMA_LIST = [1000]
+GAMMA_LIST = [2000]
 
 
 """object exsistence attack"""
-MAX_PERTURBATION_ALLOWED = 0.03
-MAX_LPNORM_PERTURBATION_ALLOWED = 0.1
+# MAX_PERTURBATION_ALLOWED = 0.015
+# MAX_LPNORM_PERTURBATION_ALLOWED = 0.1
 """targeted (car:3)"""
-# MAX_PERTURBATION_ALLOWED = 0.05
-# MAX_LPNORM_PERTURBATION_ALLOWED = 15
+MAX_PERTURBATION_ALLOWED = 0.05
+MAX_LPNORM_PERTURBATION_ALLOWED = 15
 """untargeted attack"""
 # MAX_PERTURBATION_ALLOWED = 0.01
 # MAX_LPNORM_PERTURBATION_ALLOWED = 0.1
@@ -58,7 +62,7 @@ LABELS = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 
           'hair drier', 'toothbrush']
 
 
-ATTACK_MODE = -2
+ATTACK_MODE = 2
 """
 -1  : untargeted attack
 -2  : attack confidence score for object existence

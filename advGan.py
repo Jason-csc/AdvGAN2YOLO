@@ -50,20 +50,20 @@ def init_weights(m):
 
 class AdvGAN_Attack:
     def __init__(
-                self, 
-                device, 
-                target_model, 
-                n_channels,
-                target_img_lbl,
-                lr, 
-                l_inf_bound, 
-                alpha, 
-                beta, 
-                gamma,
-                n_steps_D, 
-                n_steps_G,
-                C,
-                attack_mode,
+                self,  
+                target_model,
+                device='cuda',
+                n_channels=3,
+                target_img_lbl=11,
+                lr=5e-5, 
+                l_inf_bound=0.05, 
+                alpha=10, 
+                beta=1, 
+                gamma=1000,
+                n_steps_D=1, 
+                n_steps_G=1,
+                C=0.1,
+                attack_mode=-1,
                 is_relativistic=False
             ):
         self.device = device
@@ -249,7 +249,9 @@ class AdvGAN_Attack:
                         best_score = scores
                         best_image = res["adv_image"].detach().clone()
                 else: # targeted attack
-                    if labels[0] == LABELS[self.attack_mode] and 'stopsign' not in labels and norm < best_norm:
+                    if labels[0] == LABELS[self.attack_mode] and norm < best_norm:
+                        if 'stopsign' in labels and scores[labels.index('stopsign')] > 0.5:
+                            continue
                         best_norm = norm
                         best_labels = labels
                         best_epoch = epoch
